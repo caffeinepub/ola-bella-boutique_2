@@ -6,7 +6,6 @@ import Principal "mo:core/Principal";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 import MixinStorage "blob-storage/Mixin";
-import Storage "blob-storage/Storage";
 
 actor {
   // Product Types and Categories
@@ -45,15 +44,33 @@ actor {
     name : Text;
   };
 
-  // State Management
-  let products = Map.empty<Nat, Product>();
-  var currentId = 0;
+  // Stable storage for persistence across upgrades
+  stable var stableProducts : [(Nat, Product)] = [];
+  stable var stableCurrentId : Nat = 0;
+  stable var stableUserProfiles : [(Principal, UserProfile)] = [];
+
+  // Runtime state (rebuilt from stable on upgrade)
+  let products = Map.fromIter<Nat, Product>(stableProducts.vals());
+  var currentId = stableCurrentId;
 
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
   include MixinStorage();
 
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  let userProfiles = Map.fromIter<Principal, UserProfile>(stableUserProfiles.vals());
+
+  // Persist state before upgrade
+  system func preupgrade() {
+    stableProducts := products.entries().toArray();
+    stableCurrentId := currentId;
+    stableUserProfiles := userProfiles.entries().toArray();
+  };
+
+  // Restore state after upgrade
+  system func postupgrade() {
+    stableProducts := [];
+    stableUserProfiles := [];
+  };
 
   // User Profile Management
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -77,13 +94,12 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // Product Management (no auth check — access controlled via frontend admin password)
+  // Product Management
   public shared func addProduct(name : Text, price : Float, description : Text, productCode : Text, category : Text, imageId : ?Text) : async () {
     let validCategory = switch (Category.fromText(category)) {
       case (null) { Runtime.trap("Invalid category: " # category) };
       case (?cat) { cat };
     };
-
     let newProduct : Product = {
       id = currentId;
       name;
@@ -93,7 +109,6 @@ actor {
       category = validCategory;
       imageId;
     };
-
     products.add(currentId, newProduct);
     currentId += 1;
   };
@@ -103,7 +118,6 @@ actor {
       case (null) { Runtime.trap("Invalid category: " # category) };
       case (?cat) { cat };
     };
-
     let updatedProduct : Product = {
       id;
       name;
@@ -113,7 +127,6 @@ actor {
       category = validCategory;
       imageId;
     };
-
     products.add(id, updatedProduct);
   };
 
@@ -121,7 +134,6 @@ actor {
     products.remove(id);
   };
 
-  // Public Queries
   public query func getAllProducts() : async [Product] {
     products.values().toArray();
   };
@@ -132,9 +144,7 @@ actor {
       case (?cat) { cat };
     };
     products.values().toArray().filter(
-      func(p) {
-        p.category == validCategory;
-      }
+      func(p) { p.category == validCategory }
     );
   };
 };

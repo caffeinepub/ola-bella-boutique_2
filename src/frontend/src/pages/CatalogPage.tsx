@@ -98,7 +98,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
             rel="noopener noreferrer"
             className="mt-auto flex items-center justify-center gap-2 w-full bg-[oklch(0.55_0.18_145)] hover:bg-[oklch(0.48_0.18_145)] text-white font-sans font-medium text-sm py-2.5 px-4 rounded-xl transition-colors duration-200"
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-6 h-6" />
             Más información
           </a>
         </div>
