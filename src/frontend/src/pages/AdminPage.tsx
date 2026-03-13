@@ -38,18 +38,18 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
 import { useActor } from "../hooks/useActor";
-import { useBlobUpload } from "../hooks/useBlobUpload";
 import {
   useAddProduct,
   useDeleteProduct,
   useProducts,
   useUpdateProduct,
 } from "../hooks/useQueries";
+import { compressImageToDataUrl } from "../utils/compressImage";
 
 const ADMIN_EMAIL = "admin@tutienda.com";
 const ADMIN_PASSWORD = "olabella2024";
@@ -197,14 +197,12 @@ function ProductFormModal({
   editingProduct: Product | null;
 }) {
   const [form, setForm] = useState<ProductFormData>(emptyForm);
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   const { actor, isFetching: actorLoading } = useActor();
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
-  const { uploadFile, progress, isUploading } = useBlobUpload();
 
   useEffect(() => {
     if (open) {
@@ -221,40 +219,29 @@ function ProductFormModal({
         setForm(emptyForm);
         setLocalPreview(null);
       }
-      setImageFile(null);
     }
-    // Cleanup preview URL when modal closes
-    return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
-    };
   }, [open, editingProduct]);
 
   const isActorReady = !!actor && !actorLoading;
   const isSaving = addProduct.isPending || updateProduct.isPending;
-  const isSubmitting = isUploading || isSaving;
+  const isSubmitting = isCompressing || isSaving;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Revoke previous preview URL
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
+    setIsCompressing(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(file);
+      setLocalPreview(dataUrl);
+      setForm((f) => ({ ...f, imageUrl: dataUrl }));
+    } catch {
+      toast.error("No se pudo procesar la imagen. Intenta con otra.");
+    } finally {
+      setIsCompressing(false);
     }
-    const previewUrl = URL.createObjectURL(file);
-    previewUrlRef.current = previewUrl;
-    setImageFile(file);
-    setLocalPreview(previewUrl);
   };
 
   const handleRemoveImage = () => {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
-    setImageFile(null);
     setLocalPreview(null);
     setForm((f) => ({ ...f, imageUrl: null }));
   };
@@ -266,28 +253,13 @@ function ProductFormModal({
       return;
     }
 
-    let finalImageUrl = form.imageUrl;
-
-    if (imageFile) {
-      try {
-        finalImageUrl = await uploadFile(imageFile);
-      } catch (err) {
-        toast.error(
-          `Error al subir la imagen: ${
-            err instanceof Error ? err.message : String(err)
-          }`.slice(0, 150),
-        );
-        return;
-      }
-    }
-
     const payload = {
       name: form.name,
       price: Number.parseFloat(form.price),
       description: "",
       productCode: form.productCode,
       category: form.category,
-      imageId: finalImageUrl,
+      imageId: form.imageUrl,
     };
 
     try {
@@ -312,8 +284,8 @@ function ProductFormModal({
 
   const statusLabel = !isActorReady
     ? "Conectando..."
-    : isUploading
-      ? `Subiendo imagen... ${progress > 0 ? `${Math.round(progress)}%` : ""}`
+    : isCompressing
+      ? "Procesando imagen..."
       : isSaving
         ? "Guardando..."
         : editingProduct
@@ -418,13 +390,21 @@ function ProductFormModal({
                   data-ocid="product.upload_button"
                   className="flex flex-col items-center justify-center gap-2 cursor-pointer w-full h-full"
                 >
-                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  {isCompressing ? (
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                  )}
                   <span className="font-sans text-sm text-muted-foreground">
-                    Haz clic para subir una foto
+                    {isCompressing
+                      ? "Procesando imagen..."
+                      : "Haz clic para subir una foto"}
                   </span>
-                  <span className="font-sans text-xs text-muted-foreground">
-                    JPG, PNG o WEBP
-                  </span>
+                  {!isCompressing && (
+                    <span className="font-sans text-xs text-muted-foreground">
+                      JPG, PNG o WEBP
+                    </span>
+                  )}
                   <input
                     type="file"
                     accept="image/*"
@@ -435,14 +415,6 @@ function ProductFormModal({
                 </label>
               )}
             </div>
-            {isUploading && progress > 0 && (
-              <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-primary h-full transition-all duration-200"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            )}
           </div>
 
           <DialogFooter className="pt-2 gap-2">
