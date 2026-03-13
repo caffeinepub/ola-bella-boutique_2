@@ -48,7 +48,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
       >
         <button
           type="button"
-          className="relative aspect-[16/9] overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="relative aspect-[4/3] overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           onClick={() => product.imageId && setLightboxOpen(true)}
           aria-label={
             product.imageId ? `Ver imagen de ${product.name}` : undefined
@@ -144,7 +144,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
 function ProductSkeleton() {
   return (
     <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-card">
-      <Skeleton className="aspect-[16/9] w-full" />
+      <Skeleton className="aspect-[4/3] w-full" />
       <div className="p-5 space-y-3">
         <Skeleton className="h-5 w-3/4" />
         <div className="flex justify-between items-center">
@@ -253,7 +253,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
         {isLoading ? (
           <div
             data-ocid="catalog.loading_state"
-            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {SKELETON_KEYS.map((k) => (
               <ProductSkeleton key={k} />
@@ -294,7 +294,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {filtered.map((product, i) => (
                 <ProductCard
