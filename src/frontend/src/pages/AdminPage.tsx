@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
 import { useActor } from "../hooks/useActor";
+import { useBlobUpload } from "../hooks/useBlobUpload";
 import {
   useAddProduct,
   useDeleteProduct,
@@ -81,50 +83,6 @@ const emptyForm: ProductFormData = {
   imageUrl: null,
 };
 
-const compressImage = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const MAX_WIDTH = 400;
-      let { width, height } = img;
-      if (width > MAX_WIDTH) {
-        height = Math.round((height * MAX_WIDTH) / width);
-        width = MAX_WIDTH;
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0, width, height);
-
-      let dataUrl = canvas.toDataURL("image/jpeg", 0.5);
-      if (dataUrl.length > 40000) {
-        dataUrl = canvas.toDataURL("image/jpeg", 0.3);
-      }
-      if (dataUrl.length > 40000) {
-        dataUrl = canvas.toDataURL("image/jpeg", 0.15);
-      }
-      if (dataUrl.length > 40000) {
-        // Last resort: shrink canvas further
-        const canvas2 = document.createElement("canvas");
-        canvas2.width = Math.round(width * 0.5);
-        canvas2.height = Math.round(height * 0.5);
-        const ctx2 = canvas2.getContext("2d")!;
-        ctx2.drawImage(img, 0, 0, canvas2.width, canvas2.height);
-        dataUrl = canvas2.toDataURL("image/jpeg", 0.2);
-      }
-      resolve(dataUrl);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("No se pudo cargar la imagen"));
-    };
-    img.src = objectUrl;
-  });
-};
-
 function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -140,7 +98,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
       localStorage.setItem(STORAGE_KEY, "1");
       onLogin();
     } else {
-      setError("Correo o contrase\u00f1a incorrectos.");
+      setError("Correo o contraseña incorrectos.");
     }
     setLoading(false);
   };
@@ -167,7 +125,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             Ola Bella
           </h1>
           <p className="font-sans text-sm text-muted-foreground">
-            Panel de administraci\u00f3n
+            Panel de administración
           </p>
         </div>
 
@@ -177,7 +135,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
         >
           <div className="space-y-1.5">
             <Label htmlFor="email" className="font-sans text-sm font-medium">
-              Correo electr\u00f3nico
+              Correo electrónico
             </Label>
             <Input
               data-ocid="login.input"
@@ -192,13 +150,13 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password" className="font-sans text-sm font-medium">
-              Contrase\u00f1a
+              Contraseña
             </Label>
             <Input
               data-ocid="login.input"
               id="password"
               type="password"
-              placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="font-sans"
@@ -222,7 +180,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             disabled={loading}
           >
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {loading ? "Iniciando sesi\u00f3n..." : "Iniciar sesi\u00f3n"}
+            {loading ? "Iniciando sesión..." : "Iniciar sesión"}
           </Button>
         </form>
       </motion.div>
@@ -241,8 +199,10 @@ function ProductFormModal({
 }) {
   const [form, setForm] = useState<ProductFormData>(emptyForm);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const { actor, isFetching: actorLoading } = useActor();
+  const { uploadFile, progress, isUploading } = useBlobUpload();
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
 
@@ -261,26 +221,28 @@ function ProductFormModal({
         setForm(emptyForm);
         setLocalPreview(null);
       }
+      setPendingFile(null);
     }
   }, [open, editingProduct]);
 
   const isActorReady = !!actor && !actorLoading;
-  const isSubmitting = addProduct.isPending || updateProduct.isPending;
+  const isSaving = addProduct.isPending || updateProduct.isPending;
+  const isSubmitting = isUploading || isSaving;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      const dataUrl = await compressImage(file);
-      setLocalPreview(dataUrl);
-      setForm((f) => ({ ...f, imageUrl: dataUrl }));
-    } catch {
-      toast.error("No se pudo cargar la imagen. Intenta con otra.");
-    }
+    // Just show a local preview; actual upload happens on submit
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreview(objectUrl);
+    setPendingFile(file);
+    // Clear the previously saved URL until we upload the new file
+    setForm((f) => ({ ...f, imageUrl: null }));
   };
 
   const handleRemoveImage = () => {
     setLocalPreview(null);
+    setPendingFile(null);
     setForm((f) => ({ ...f, imageUrl: null }));
   };
 
@@ -290,14 +252,32 @@ function ProductFormModal({
       toast.error("Conectando al servidor, intenta en un momento.");
       return;
     }
+
+    let imageUrl = form.imageUrl;
+
+    // If there's a new file selected, upload it to blob storage first
+    if (pendingFile) {
+      try {
+        imageUrl = await uploadFile(pendingFile);
+      } catch (err) {
+        toast.error(
+          `Error al subir la imagen: ${
+            err instanceof Error ? err.message : String(err)
+          }`.slice(0, 150),
+        );
+        return;
+      }
+    }
+
     const payload = {
       name: form.name,
       price: Number.parseFloat(form.price),
       description: "",
       productCode: form.productCode,
       category: form.category,
-      imageId: form.imageUrl,
+      imageId: imageUrl,
     };
+
     try {
       if (editingProduct) {
         await updateProduct.mutateAsync({ id: editingProduct.id, ...payload });
@@ -307,12 +287,26 @@ function ProductFormModal({
         toast.success("Producto agregado correctamente");
       }
       onClose();
-    } catch {
-      toast.error("Error al guardar. Por favor intenta de nuevo.");
+    } catch (err) {
+      toast.error(
+        `Error al guardar: ${
+          err instanceof Error ? err.message : String(err)
+        }`.slice(0, 150),
+      );
     }
   };
 
   const previewSrc = localPreview ?? form.imageUrl;
+
+  const statusLabel = !isActorReady
+    ? "Conectando..."
+    : isUploading
+      ? `Subiendo imagen... ${progress}%`
+      : isSaving
+        ? "Guardando..."
+        : editingProduct
+          ? "Guardar cambios"
+          : "Agregar producto";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -355,7 +349,7 @@ function ProductFormModal({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="font-sans text-sm">C\u00f3digo de producto</Label>
+            <Label className="font-sans text-sm">Código de producto</Label>
             <Input
               data-ocid="product.input"
               value={form.productCode}
@@ -368,13 +362,13 @@ function ProductFormModal({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="font-sans text-sm">Categor\u00eda</Label>
+            <Label className="font-sans text-sm">Categoría</Label>
             <Select
               value={form.category}
               onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
             >
               <SelectTrigger data-ocid="product.select">
-                <SelectValue placeholder="Selecciona una categor\u00eda" />
+                <SelectValue placeholder="Selecciona una categoría" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(CATEGORY_LABELS).map(([val, label]) => (
@@ -388,13 +382,16 @@ function ProductFormModal({
 
           <div className="space-y-1.5">
             <Label className="font-sans text-sm">Foto del producto</Label>
-            <div className="border-2 border-dashed border-border rounded-xl p-4 hover:border-primary/50 transition-colors">
+            <div
+              className="border-2 border-dashed border-border rounded-xl overflow-hidden hover:border-primary/50 transition-colors"
+              style={{ aspectRatio: "16/9" }}
+            >
               {previewSrc ? (
-                <div className="relative">
+                <div className="relative w-full h-full">
                   <img
                     src={previewSrc}
                     alt="Vista previa"
-                    className="w-full h-48 object-contain rounded-lg bg-secondary"
+                    className="w-full h-full object-contain bg-secondary"
                   />
                   <button
                     type="button"
@@ -407,7 +404,7 @@ function ProductFormModal({
               ) : (
                 <label
                   data-ocid="product.upload_button"
-                  className="flex flex-col items-center gap-2 cursor-pointer py-4"
+                  className="flex flex-col items-center justify-center gap-2 cursor-pointer w-full h-full"
                 >
                   <ImageIcon className="w-8 h-8 text-muted-foreground" />
                   <span className="font-sans text-sm text-muted-foreground">
@@ -421,10 +418,21 @@ function ProductFormModal({
                     accept="image/*"
                     className="sr-only"
                     onChange={handleFileChange}
+                    disabled={isSubmitting}
                   />
                 </label>
               )}
             </div>
+
+            {/* Upload progress bar */}
+            {isUploading && (
+              <div className="space-y-1">
+                <Progress value={progress} className="h-2" />
+                <p className="font-sans text-xs text-muted-foreground text-center">
+                  Subiendo imagen... {progress}%
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="pt-2 gap-2">
@@ -434,6 +442,7 @@ function ProductFormModal({
               variant="outline"
               onClick={onClose}
               className="font-sans"
+              disabled={isSubmitting}
             >
               Cancelar
             </Button>
@@ -446,11 +455,7 @@ function ProductFormModal({
               {isSubmitting || !isActorReady ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
-              {!isActorReady
-                ? "Conectando..."
-                : editingProduct
-                  ? "Guardar cambios"
-                  : "Agregar producto"}
+              {statusLabel}
             </Button>
           </DialogFooter>
         </form>
@@ -509,7 +514,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 Ola Bella
               </h1>
               <p className="font-sans text-xs text-muted-foreground">
-                Panel de administraci\u00f3n
+                Panel de administración
               </p>
             </div>
           </div>
@@ -521,7 +526,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             className="font-sans text-muted-foreground hover:text-foreground gap-1.5"
           >
             <LogOut className="w-4 h-4" />
-            Cerrar sesi\u00f3n
+            Cerrar sesión
           </Button>
         </div>
       </header>
@@ -534,7 +539,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </h2>
             <p className="font-sans text-sm text-muted-foreground mt-0.5">
               {products.length} producto{products.length !== 1 ? "s" : ""} en
-              cat\u00e1logo
+              catálogo
             </p>
           </div>
           <Button
@@ -565,7 +570,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               Sin productos
             </h3>
             <p className="font-sans text-sm text-muted-foreground mb-5">
-              Agrega tu primer producto al cat\u00e1logo.
+              Agrega tu primer producto al catálogo.
             </p>
             <Button
               data-ocid="admin.product.primary_button"
@@ -619,7 +624,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         ${product.price.toLocaleString("es-MX")} MXN
                       </span>
                       <span className="font-sans text-xs text-muted-foreground">
-                        C\u00f3d: {product.productCode}
+                        Cód: {product.productCode}
                       </span>
                     </div>
                   </div>
@@ -653,14 +658,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <footer className="border-t border-border mt-auto py-4 text-center">
         <p className="font-sans text-xs text-muted-foreground">
-          \u00a9 {currentYear}.{" "}
+          © {currentYear}.{" "}
           <a
             href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-primary transition-colors"
           >
-            Creado con \u2764\ufe0f en caffeine.ai
+            Creado con ❤️ en caffeine.ai
           </a>
         </p>
       </footer>
@@ -681,12 +686,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <AlertDialogContent data-ocid="admin.product.dialog">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">
-              \u00bfEliminar producto?
+              ¿Eliminar producto?
             </AlertDialogTitle>
             <AlertDialogDescription className="font-sans">
-              \u00bfEst\u00e1s segura de que deseas eliminar{" "}
-              <strong>{deleteTarget?.name}</strong>? Esta acci\u00f3n no se
-              puede deshacer.
+              ¿Estás segura de que deseas eliminar{" "}
+              <strong>{deleteTarget?.name}</strong>? Esta acción no se puede
+              deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
