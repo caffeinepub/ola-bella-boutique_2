@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MapPin, MessageCircle, Package, ShoppingBag } from "lucide-react";
+import { MapPin, MessageCircle, Package, ShoppingBag, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import type { Product } from "../backend";
@@ -34,81 +34,119 @@ function buildWhatsAppUrl(product: Product): string {
 }
 
 function ProductCard({ product, index }: { product: Product; index: number }) {
-  return (
-    <motion.article
-      data-ocid={`product.item.${index + 1}`}
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.4, delay: index * 0.06 }}
-      className="group relative bg-card rounded-2xl overflow-hidden border border-border shadow-card hover:shadow-card-hover transition-all duration-500 hover:-translate-y-1 flex flex-col"
-    >
-      {/* Image */}
-      <div className="relative aspect-[4/3] overflow-hidden bg-secondary">
-        {product.imageId ? (
-          <img
-            src={product.imageId}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center text-muted-foreground">
-              <ShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <span className="text-xs font-sans">Sin imagen</span>
-            </div>
-          </div>
-        )}
-        <div className="absolute top-3 right-3">
-          <Badge className="bg-primary/90 text-primary-foreground border-0 text-xs font-sans font-medium backdrop-blur-sm">
-            {CATEGORY_LABELS[product.category]}
-          </Badge>
-        </div>
-      </div>
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
-      {/* Content */}
-      <div className="flex flex-col flex-1 p-5 gap-3">
-        <div>
-          <h3 className="font-display text-lg font-semibold text-foreground leading-snug mb-1">
+  return (
+    <>
+      <motion.article
+        data-ocid={`product.item.${index + 1}`}
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.4, delay: index * 0.06 }}
+        className="group relative bg-card rounded-2xl overflow-hidden border border-border shadow-card hover:shadow-card-hover transition-all duration-500 hover:-translate-y-1 flex flex-col"
+      >
+        <button
+          type="button"
+          className="relative aspect-[16/9] overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          onClick={() => product.imageId && setLightboxOpen(true)}
+          aria-label={
+            product.imageId ? `Ver imagen de ${product.name}` : undefined
+          }
+          disabled={!product.imageId}
+          style={{ cursor: product.imageId ? "pointer" : "default" }}
+        >
+          {product.imageId ? (
+            <img
+              src={product.imageId}
+              alt={product.name}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <ShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <span className="text-xs font-sans">Sin imagen</span>
+              </div>
+            </div>
+          )}
+          <div className="absolute top-3 right-3">
+            <Badge className="bg-primary/90 text-primary-foreground border-0 text-xs font-sans font-medium backdrop-blur-sm">
+              {CATEGORY_LABELS[product.category]}
+            </Badge>
+          </div>
+        </button>
+
+        <div className="flex flex-col flex-1 p-5 gap-3">
+          <h3 className="font-display text-lg font-semibold text-foreground leading-snug">
             {product.name}
           </h3>
-          <p className="text-sm text-muted-foreground font-sans leading-relaxed line-clamp-2">
-            {product.description}
-          </p>
-        </div>
 
-        <div className="flex items-center justify-between">
-          <span className="font-display text-xl font-bold text-primary">
-            ${product.price.toLocaleString("es-MX")} MXN
-          </span>
-          <span className="text-xs text-muted-foreground font-sans bg-muted px-2 py-1 rounded-full">
-            Cód: {product.productCode}
-          </span>
-        </div>
+          <div className="flex items-center justify-between">
+            <span className="font-display text-xl font-bold text-primary">
+              ${product.price.toLocaleString("es-MX")} MXN
+            </span>
+            <span className="text-xs text-muted-foreground font-sans bg-muted px-2 py-1 rounded-full">
+              Cód: {product.productCode}
+            </span>
+          </div>
 
-        <a
-          data-ocid={`product.button.${index + 1}`}
-          href={buildWhatsAppUrl(product)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto flex items-center justify-center gap-2 w-full bg-[oklch(0.55_0.18_145)] hover:bg-[oklch(0.48_0.18_145)] text-white font-sans font-medium text-sm py-2.5 px-4 rounded-xl transition-colors duration-200"
-        >
-          <MessageCircle className="w-4 h-4" />
-          Preguntar por WhatsApp
-        </a>
-      </div>
-    </motion.article>
+          <a
+            data-ocid={`product.button.${index + 1}`}
+            href={buildWhatsAppUrl(product)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-auto flex items-center justify-center gap-2 w-full bg-[oklch(0.55_0.18_145)] hover:bg-[oklch(0.48_0.18_145)] text-white font-sans font-medium text-sm py-2.5 px-4 rounded-xl transition-colors duration-200"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Más información
+          </a>
+        </div>
+      </motion.article>
+
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div
+            data-ocid="product.modal"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setLightboxOpen(false)}
+          >
+            <button
+              type="button"
+              data-ocid="product.close_button"
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-4 right-4 text-white bg-black/40 hover:bg-black/60 rounded-full p-2 transition-colors"
+              aria-label="Cerrar"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <motion.img
+              src={product.imageId as string}
+              alt={product.name}
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
 function ProductSkeleton() {
   return (
     <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-card">
-      <Skeleton className="aspect-[4/3] w-full" />
+      <Skeleton className="aspect-[16/9] w-full" />
       <div className="p-5 space-y-3">
         <Skeleton className="h-5 w-3/4" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
         <div className="flex justify-between items-center">
           <Skeleton className="h-6 w-24" />
           <Skeleton className="h-5 w-20" />
@@ -130,7 +168,6 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
       <header className="relative">
         <div
           className="relative h-[340px] md:h-[420px] overflow-hidden"
@@ -158,7 +195,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
               transition={{ duration: 0.7 }}
             >
               <p className="font-sans text-xs tracking-[0.3em] uppercase text-primary/80 font-medium mb-3">
-                Tu próxima parada Una ola de belleza y elegancia
+                Tu próxima parada &mdash; Una ola de belleza y elegancia
               </p>
               <h1 className="font-display text-5xl md:text-7xl italic text-foreground mb-3 tracking-tight">
                 Ola Bella
@@ -179,7 +216,6 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
           </div>
         </div>
 
-        {/* Nav stripe */}
         <div className="bg-card border-b border-border shadow-xs">
           <div className="max-w-6xl mx-auto px-6 py-3 flex items-center">
             <div className="flex items-center gap-2">
@@ -192,9 +228,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
-        {/* Category tabs */}
         <div className="mb-8">
           <Tabs value={activeCategory} onValueChange={setActiveCategory}>
             <TabsList
@@ -216,11 +250,10 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
           </Tabs>
         </div>
 
-        {/* Products grid */}
         {isLoading ? (
           <div
             data-ocid="catalog.loading_state"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
           >
             {SKELETON_KEYS.map((k) => (
               <ProductSkeleton key={k} />
@@ -261,7 +294,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
             >
               {filtered.map((product, i) => (
                 <ProductCard
@@ -275,7 +308,6 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border bg-card mt-auto">
         <div className="max-w-6xl mx-auto px-6 py-8 text-center">
           <p className="font-display text-lg italic text-primary/80 mb-1">

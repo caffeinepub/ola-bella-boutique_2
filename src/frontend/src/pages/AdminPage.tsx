@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import {
   ImageIcon,
   Loader2,
@@ -39,7 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
@@ -69,7 +68,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 interface ProductFormData {
   name: string;
   price: string;
-  description: string;
   productCode: string;
   category: string;
   imageId: string | null;
@@ -78,13 +76,12 @@ interface ProductFormData {
 const emptyForm: ProductFormData = {
   name: "",
   price: "",
-  description: "",
   productCode: "",
   category: "",
   imageId: null,
 };
 
-// ─── Image Compression Utility ────────────────────────────────────────────────
+// ─── Image Compression Utility ─────────────────────────────────────────────────
 async function compressImage(file: File): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -113,7 +110,7 @@ async function compressImage(file: File): Promise<string> {
   });
 }
 
-// ─── Login Form ───────────────────────────────────────────────────────────────
+// ─── Login Form ────────────────────────────────────────────────────────────────────────────────
 function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -219,7 +216,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-// ─── Product Form Modal ───────────────────────────────────────────────────────
+// ─── Product Form Modal ─────────────────────────────────────────────────────────────────────────
 function ProductFormModal({
   open,
   onClose,
@@ -229,25 +226,31 @@ function ProductFormModal({
   onClose: () => void;
   editingProduct: Product | null;
 }) {
-  const [form, setForm] = useState<ProductFormData>(
-    editingProduct
-      ? {
-          name: editingProduct.name,
-          price: editingProduct.price.toString(),
-          description: editingProduct.description,
-          productCode: editingProduct.productCode,
-          category: editingProduct.category,
-          imageId: editingProduct.imageId ?? null,
-        }
-      : emptyForm,
-  );
-  const [imagePreview, setImagePreview] = useState<string | null>(
-    editingProduct?.imageId ?? null,
-  );
+  const [form, setForm] = useState<ProductFormData>(emptyForm);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
   const { uploadImage, uploading, uploadProgress } = useImageUpload();
+
+  // Reset form whenever the modal opens or the editing target changes
+  useEffect(() => {
+    if (open) {
+      if (editingProduct) {
+        setForm({
+          name: editingProduct.name,
+          price: editingProduct.price.toString(),
+          productCode: editingProduct.productCode,
+          category: editingProduct.category,
+          imageId: editingProduct.imageId ?? null,
+        });
+        setImagePreview(editingProduct.imageId ?? null);
+      } else {
+        setForm(emptyForm);
+        setImagePreview(null);
+      }
+    }
+  }, [open, editingProduct]);
 
   const isSubmitting =
     addProduct.isPending || updateProduct.isPending || uploading;
@@ -256,22 +259,18 @@ function ProductFormModal({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 10 MB)
     if (file.size > 10 * 1024 * 1024) {
       toast.error("La imagen es demasiado grande. Máximo 10 MB.");
       return;
     }
 
-    // Compress first — used for preview and as fallback
     const compressed = await compressImage(file);
     setImagePreview(compressed);
 
-    // Try blob storage upload
     const url = await uploadImage(file);
     if (url) {
       setForm((f) => ({ ...f, imageId: url }));
     } else {
-      // Use compressed data URL as fallback (well under 1 MB)
       setForm((f) => ({ ...f, imageId: compressed }));
     }
   };
@@ -281,7 +280,7 @@ function ProductFormModal({
     const payload = {
       name: form.name,
       price: Number.parseFloat(form.price),
-      description: form.description,
+      description: "",
       productCode: form.productCode,
       category: form.category,
       imageId: form.imageId,
@@ -338,21 +337,6 @@ function ProductFormModal({
                 setForm((f) => ({ ...f, price: e.target.value }))
               }
               placeholder="Ej. 1200"
-              required
-            />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label className="font-sans text-sm">Descripción</Label>
-            <Textarea
-              data-ocid="product.textarea"
-              value={form.description}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
-              }
-              placeholder="Describe el producto..."
-              rows={3}
               required
             />
           </div>
@@ -481,7 +465,7 @@ function ProductFormModal({
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ─── Dashboard ─────────────────────────────────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -515,7 +499,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
       <header className="bg-card border-b border-border shadow-xs sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -550,7 +533,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -613,7 +595,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                   transition={{ delay: i * 0.04 }}
                   className="flex items-center gap-4 p-4 hover:bg-muted/40 transition-colors"
                 >
-                  {/* Image thumbnail */}
                   <div className="w-14 h-14 rounded-lg overflow-hidden bg-secondary flex-shrink-0">
                     {product.imageId ? (
                       <img
@@ -628,7 +609,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-display font-semibold text-foreground truncate">
@@ -651,7 +631,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                     </div>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       data-ocid={`admin.product.edit_button.${i + 1}`}
@@ -679,7 +658,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         )}
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border mt-auto py-4 text-center">
         <p className="font-sans text-xs text-muted-foreground">
           © {currentYear}.{" "}
@@ -694,7 +672,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         </p>
       </footer>
 
-      {/* Product form modal */}
       <ProductFormModal
         open={modalOpen}
         onClose={() => {
@@ -704,7 +681,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         editingProduct={editingProduct}
       />
 
-      {/* Delete confirmation */}
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(o) => !o && setDeleteTarget(null)}
@@ -741,7 +717,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-// ─── Admin Page (root) ────────────────────────────────────────────────────────
+// ─── Admin Page (root) ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage({ navigate: _navigate }: AdminPageProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => localStorage.getItem(STORAGE_KEY) === "1",
