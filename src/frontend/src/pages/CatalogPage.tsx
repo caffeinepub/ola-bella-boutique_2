@@ -48,7 +48,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
       >
         <button
           type="button"
-          className="relative aspect-[4/3] overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="relative aspect-video overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           onClick={() => product.imageId && setLightboxOpen(true)}
           aria-label={
             product.imageId ? `Ver imagen de ${product.name}` : undefined
@@ -144,7 +144,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
 function ProductSkeleton() {
   return (
     <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-card">
-      <Skeleton className="aspect-[4/3] w-full" />
+      <Skeleton className="aspect-video w-full" />
       <div className="p-5 space-y-3">
         <Skeleton className="h-5 w-3/4" />
         <div className="flex justify-between items-center">
