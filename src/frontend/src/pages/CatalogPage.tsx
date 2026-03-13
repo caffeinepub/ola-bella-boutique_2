@@ -30,7 +30,7 @@ const SKELETON_KEYS = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"];
 
 function buildWhatsAppUrl(product: Product): string {
   const msg = `Hola, me interesa el producto ${product.name} (Código: ${product.productCode}), ¿me pueden dar más información?`;
-  return `https://wa.me/1234567890?text=${encodeURIComponent(msg)}`;
+  return `https://wa.me/4808193963?text=${encodeURIComponent(msg)}`;
 }
 
 function ProductCard({ product, index }: { product: Product; index: number }) {
@@ -119,7 +119,7 @@ function ProductSkeleton() {
   );
 }
 
-export default function CatalogPage({ navigate }: CatalogPageProps) {
+export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState("todos");
   const { data: products = [], isLoading } = useProducts();
 
@@ -127,8 +127,6 @@ export default function CatalogPage({ navigate }: CatalogPageProps) {
     activeCategory === "todos"
       ? products
       : products.filter((p) => p.category === activeCategory);
-
-  const currentYear = new Date().getFullYear();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -160,9 +158,9 @@ export default function CatalogPage({ navigate }: CatalogPageProps) {
               transition={{ duration: 0.7 }}
             >
               <p className="font-sans text-xs tracking-[0.3em] uppercase text-primary/80 font-medium mb-3">
-                Boutique de moda femenina
+                Tu próxima parada Una ola de belleza y elegancia
               </p>
-              <h1 className="font-display text-5xl md:text-7xl font-bold text-foreground mb-3 tracking-tight">
+              <h1 className="font-display text-5xl md:text-7xl italic text-foreground mb-3 tracking-tight">
                 Ola Bella
               </h1>
               <p
@@ -183,21 +181,13 @@ export default function CatalogPage({ navigate }: CatalogPageProps) {
 
         {/* Nav stripe */}
         <div className="bg-card border-b border-border shadow-xs">
-          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+          <div className="max-w-6xl mx-auto px-6 py-3 flex items-center">
             <div className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5 text-primary" />
               <span className="font-display text-base font-semibold text-foreground">
                 Catálogo
               </span>
             </div>
-            <button
-              type="button"
-              data-ocid="admin.link"
-              onClick={() => navigate("/admin")}
-              className="text-xs font-sans text-muted-foreground hover:text-primary transition-colors"
-            >
-              Administrador
-            </button>
           </div>
         </div>
       </header>
@@ -291,19 +281,8 @@ export default function CatalogPage({ navigate }: CatalogPageProps) {
           <p className="font-display text-lg italic text-primary/80 mb-1">
             Ola Bella Boutique
           </p>
-          <p className="font-sans text-xs text-muted-foreground mb-4">
-            Puerto Peñasco, Sonora, México
-          </p>
           <p className="font-sans text-xs text-muted-foreground">
-            © {currentYear}.{" "}
-            <a
-              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary transition-colors"
-            >
-              Creado con ❤️ en caffeine.ai
-            </a>
+            Puerto Peñasco, Sonora, México
           </p>
         </div>
       </footer>
