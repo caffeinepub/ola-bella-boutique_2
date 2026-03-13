@@ -87,7 +87,7 @@ const compressImage = (file: File): Promise<string> => {
     const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const MAX_WIDTH = 800;
+      const MAX_WIDTH = 400;
       let { width, height } = img;
       if (width > MAX_WIDTH) {
         height = Math.round((height * MAX_WIDTH) / width);
@@ -99,12 +99,21 @@ const compressImage = (file: File): Promise<string> => {
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0, width, height);
 
-      let dataUrl = canvas.toDataURL("image/jpeg", 0.7);
-      if (dataUrl.length > 200000) {
-        dataUrl = canvas.toDataURL("image/jpeg", 0.4);
+      let dataUrl = canvas.toDataURL("image/jpeg", 0.5);
+      if (dataUrl.length > 40000) {
+        dataUrl = canvas.toDataURL("image/jpeg", 0.3);
       }
-      if (dataUrl.length > 200000) {
-        dataUrl = canvas.toDataURL("image/jpeg", 0.2);
+      if (dataUrl.length > 40000) {
+        dataUrl = canvas.toDataURL("image/jpeg", 0.15);
+      }
+      if (dataUrl.length > 40000) {
+        // Last resort: shrink canvas further
+        const canvas2 = document.createElement("canvas");
+        canvas2.width = Math.round(width * 0.5);
+        canvas2.height = Math.round(height * 0.5);
+        const ctx2 = canvas2.getContext("2d")!;
+        ctx2.drawImage(img, 0, 0, canvas2.width, canvas2.height);
+        dataUrl = canvas2.toDataURL("image/jpeg", 0.2);
       }
       resolve(dataUrl);
     };
