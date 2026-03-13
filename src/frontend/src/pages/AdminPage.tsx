@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -39,7 +38,7 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
@@ -198,13 +197,14 @@ function ProductFormModal({
   editingProduct: Product | null;
 }) {
   const [form, setForm] = useState<ProductFormData>(emptyForm);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   const { actor, isFetching: actorLoading } = useActor();
-  const { uploadFile, progress, isUploading } = useBlobUpload();
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
+  const { uploadFile, progress, isUploading } = useBlobUpload();
 
   useEffect(() => {
     if (open) {
@@ -221,8 +221,15 @@ function ProductFormModal({
         setForm(emptyForm);
         setLocalPreview(null);
       }
-      setPendingFile(null);
+      setImageFile(null);
     }
+    // Cleanup preview URL when modal closes
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
   }, [open, editingProduct]);
 
   const isActorReady = !!actor && !actorLoading;
@@ -232,17 +239,23 @@ function ProductFormModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Just show a local preview; actual upload happens on submit
-    const objectUrl = URL.createObjectURL(file);
-    setLocalPreview(objectUrl);
-    setPendingFile(file);
-    // Clear the previously saved URL until we upload the new file
-    setForm((f) => ({ ...f, imageUrl: null }));
+    // Revoke previous preview URL
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+    }
+    const previewUrl = URL.createObjectURL(file);
+    previewUrlRef.current = previewUrl;
+    setImageFile(file);
+    setLocalPreview(previewUrl);
   };
 
   const handleRemoveImage = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setImageFile(null);
     setLocalPreview(null);
-    setPendingFile(null);
     setForm((f) => ({ ...f, imageUrl: null }));
   };
 
@@ -253,12 +266,11 @@ function ProductFormModal({
       return;
     }
 
-    let imageUrl = form.imageUrl;
+    let finalImageUrl = form.imageUrl;
 
-    // If there's a new file selected, upload it to blob storage first
-    if (pendingFile) {
+    if (imageFile) {
       try {
-        imageUrl = await uploadFile(pendingFile);
+        finalImageUrl = await uploadFile(imageFile);
       } catch (err) {
         toast.error(
           `Error al subir la imagen: ${
@@ -275,7 +287,7 @@ function ProductFormModal({
       description: "",
       productCode: form.productCode,
       category: form.category,
-      imageId: imageUrl,
+      imageId: finalImageUrl,
     };
 
     try {
@@ -301,7 +313,7 @@ function ProductFormModal({
   const statusLabel = !isActorReady
     ? "Conectando..."
     : isUploading
-      ? `Subiendo imagen... ${progress}%`
+      ? `Subiendo imagen... ${progress > 0 ? `${Math.round(progress)}%` : ""}`
       : isSaving
         ? "Guardando..."
         : editingProduct
@@ -423,14 +435,12 @@ function ProductFormModal({
                 </label>
               )}
             </div>
-
-            {/* Upload progress bar */}
-            {isUploading && (
-              <div className="space-y-1">
-                <Progress value={progress} className="h-2" />
-                <p className="font-sans text-xs text-muted-foreground text-center">
-                  Subiendo imagen... {progress}%
-                </p>
+            {isUploading && progress > 0 && (
+              <div className="w-full bg-secondary rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-primary h-full transition-all duration-200"
+                  style={{ width: `${progress}%` }}
+                />
               </div>
             )}
           </div>
