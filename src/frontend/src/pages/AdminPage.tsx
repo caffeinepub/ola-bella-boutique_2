@@ -42,7 +42,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
-import { useImageUpload } from "../hooks/useImageUpload";
+import { useActor } from "../hooks/useActor";
 import {
   useAddProduct,
   useDeleteProduct,
@@ -70,7 +70,7 @@ interface ProductFormData {
   price: string;
   productCode: string;
   category: string;
-  imageId: string | null;
+  imageUrl: string | null;
 }
 
 const emptyForm: ProductFormData = {
@@ -78,39 +78,44 @@ const emptyForm: ProductFormData = {
   price: "",
   productCode: "",
   category: "",
-  imageId: null,
+  imageUrl: null,
 };
 
-// ─── Image Compression Utility ─────────────────────────────────────────────────
-async function compressImage(file: File): Promise<string> {
-  return new Promise((resolve) => {
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
-    const url = URL.createObjectURL(file);
+    const objectUrl = URL.createObjectURL(file);
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      const MAX = 800;
+      URL.revokeObjectURL(objectUrl);
+      const MAX_WIDTH = 800;
       let { width, height } = img;
-      if (width > MAX || height > MAX) {
-        if (width > height) {
-          height = Math.round((height * MAX) / width);
-          width = MAX;
-        } else {
-          width = Math.round((width * MAX) / height);
-          height = MAX;
-        }
+      if (width > MAX_WIDTH) {
+        height = Math.round((height * MAX_WIDTH) / width);
+        width = MAX_WIDTH;
       }
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.7));
-    };
-    img.src = url;
-  });
-}
 
-// ─── Login Form ────────────────────────────────────────────────────────────────────────────────
+      let dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+      if (dataUrl.length > 200000) {
+        dataUrl = canvas.toDataURL("image/jpeg", 0.4);
+      }
+      if (dataUrl.length > 200000) {
+        dataUrl = canvas.toDataURL("image/jpeg", 0.2);
+      }
+      resolve(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("No se pudo cargar la imagen"));
+    };
+    img.src = objectUrl;
+  });
+};
+
 function LoginForm({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -126,7 +131,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
       localStorage.setItem(STORAGE_KEY, "1");
       onLogin();
     } else {
-      setError("Correo o contraseña incorrectos.");
+      setError("Correo o contrase\u00f1a incorrectos.");
     }
     setLoading(false);
   };
@@ -153,7 +158,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             Ola Bella
           </h1>
           <p className="font-sans text-sm text-muted-foreground">
-            Panel de administración
+            Panel de administraci\u00f3n
           </p>
         </div>
 
@@ -163,7 +168,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
         >
           <div className="space-y-1.5">
             <Label htmlFor="email" className="font-sans text-sm font-medium">
-              Correo electrónico
+              Correo electr\u00f3nico
             </Label>
             <Input
               data-ocid="login.input"
@@ -178,13 +183,13 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password" className="font-sans text-sm font-medium">
-              Contraseña
+              Contrase\u00f1a
             </Label>
             <Input
               data-ocid="login.input"
               id="password"
               type="password"
-              placeholder="••••••••"
+              placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="font-sans"
@@ -208,7 +213,7 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
             disabled={loading}
           >
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-            {loading ? "Iniciando sesión..." : "Iniciar sesión"}
+            {loading ? "Iniciando sesi\u00f3n..." : "Iniciar sesi\u00f3n"}
           </Button>
         </form>
       </motion.div>
@@ -216,7 +221,6 @@ function LoginForm({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-// ─── Product Form Modal ─────────────────────────────────────────────────────────────────────────
 function ProductFormModal({
   open,
   onClose,
@@ -227,13 +231,12 @@ function ProductFormModal({
   editingProduct: Product | null;
 }) {
   const [form, setForm] = useState<ProductFormData>(emptyForm);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
 
+  const { actor, isFetching: actorLoading } = useActor();
   const addProduct = useAddProduct();
   const updateProduct = useUpdateProduct();
-  const { uploadImage, uploading, uploadProgress } = useImageUpload();
 
-  // Reset form whenever the modal opens or the editing target changes
   useEffect(() => {
     if (open) {
       if (editingProduct) {
@@ -242,48 +245,49 @@ function ProductFormModal({
           price: editingProduct.price.toString(),
           productCode: editingProduct.productCode,
           category: editingProduct.category,
-          imageId: editingProduct.imageId ?? null,
+          imageUrl: editingProduct.imageId ?? null,
         });
-        setImagePreview(editingProduct.imageId ?? null);
+        setLocalPreview(editingProduct.imageId ?? null);
       } else {
         setForm(emptyForm);
-        setImagePreview(null);
+        setLocalPreview(null);
       }
     }
   }, [open, editingProduct]);
 
-  const isSubmitting =
-    addProduct.isPending || updateProduct.isPending || uploading;
+  const isActorReady = !!actor && !actorLoading;
+  const isSubmitting = addProduct.isPending || updateProduct.isPending;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("La imagen es demasiado grande. Máximo 10 MB.");
-      return;
+    try {
+      const dataUrl = await compressImage(file);
+      setLocalPreview(dataUrl);
+      setForm((f) => ({ ...f, imageUrl: dataUrl }));
+    } catch {
+      toast.error("No se pudo cargar la imagen. Intenta con otra.");
     }
+  };
 
-    const compressed = await compressImage(file);
-    setImagePreview(compressed);
-
-    const url = await uploadImage(file);
-    if (url) {
-      setForm((f) => ({ ...f, imageId: url }));
-    } else {
-      setForm((f) => ({ ...f, imageId: compressed }));
-    }
+  const handleRemoveImage = () => {
+    setLocalPreview(null);
+    setForm((f) => ({ ...f, imageUrl: null }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!actor) {
+      toast.error("Conectando al servidor, intenta en un momento.");
+      return;
+    }
     const payload = {
       name: form.name,
       price: Number.parseFloat(form.price),
       description: "",
       productCode: form.productCode,
       category: form.category,
-      imageId: form.imageId,
+      imageId: form.imageUrl,
     };
     try {
       if (editingProduct) {
@@ -295,9 +299,11 @@ function ProductFormModal({
       }
       onClose();
     } catch {
-      toast.error("Hubo un error. Intenta de nuevo.");
+      toast.error("Error al guardar. Por favor intenta de nuevo.");
     }
   };
+
+  const previewSrc = localPreview ?? form.imageUrl;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -312,7 +318,6 @@ function ProductFormModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* Name */}
           <div className="space-y-1.5">
             <Label className="font-sans text-sm">Nombre</Label>
             <Input
@@ -324,7 +329,6 @@ function ProductFormModal({
             />
           </div>
 
-          {/* Price */}
           <div className="space-y-1.5">
             <Label className="font-sans text-sm">Precio (MXN)</Label>
             <Input
@@ -341,9 +345,8 @@ function ProductFormModal({
             />
           </div>
 
-          {/* Product code */}
           <div className="space-y-1.5">
-            <Label className="font-sans text-sm">Código de producto</Label>
+            <Label className="font-sans text-sm">C\u00f3digo de producto</Label>
             <Input
               data-ocid="product.input"
               value={form.productCode}
@@ -355,15 +358,14 @@ function ProductFormModal({
             />
           </div>
 
-          {/* Category */}
           <div className="space-y-1.5">
-            <Label className="font-sans text-sm">Categoría</Label>
+            <Label className="font-sans text-sm">Categor\u00eda</Label>
             <Select
               value={form.category}
               onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
             >
               <SelectTrigger data-ocid="product.select">
-                <SelectValue placeholder="Selecciona una categoría" />
+                <SelectValue placeholder="Selecciona una categor\u00eda" />
               </SelectTrigger>
               <SelectContent>
                 {Object.entries(CATEGORY_LABELS).map(([val, label]) => (
@@ -375,23 +377,19 @@ function ProductFormModal({
             </Select>
           </div>
 
-          {/* Image upload */}
           <div className="space-y-1.5">
             <Label className="font-sans text-sm">Foto del producto</Label>
             <div className="border-2 border-dashed border-border rounded-xl p-4 hover:border-primary/50 transition-colors">
-              {imagePreview ? (
+              {previewSrc ? (
                 <div className="relative">
                   <img
-                    src={imagePreview}
+                    src={previewSrc}
                     alt="Vista previa"
-                    className="w-full h-40 object-cover rounded-lg"
+                    className="w-full h-48 object-contain rounded-lg bg-secondary"
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      setImagePreview(null);
-                      setForm((f) => ({ ...f, imageId: null }));
-                    }}
+                    onClick={handleRemoveImage}
                     className="absolute top-2 right-2 bg-foreground/70 text-background rounded-full p-1 hover:bg-foreground transition-colors"
                   >
                     <X className="w-3 h-3" />
@@ -417,23 +415,6 @@ function ProductFormModal({
                   />
                 </label>
               )}
-              {uploading && (
-                <div
-                  data-ocid="product.loading_state"
-                  className="mt-2 space-y-1"
-                >
-                  <div className="flex justify-between text-xs text-muted-foreground font-sans">
-                    <span>Subiendo imagen...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -450,13 +431,17 @@ function ProductFormModal({
             <Button
               data-ocid="product.submit_button"
               type="submit"
-              disabled={isSubmitting || !form.category}
+              disabled={isSubmitting || !form.category || !isActorReady}
               className="font-sans font-medium"
             >
-              {isSubmitting ? (
+              {isSubmitting || !isActorReady ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
-              {editingProduct ? "Guardar cambios" : "Agregar producto"}
+              {!isActorReady
+                ? "Conectando..."
+                : editingProduct
+                  ? "Guardar cambios"
+                  : "Agregar producto"}
             </Button>
           </DialogFooter>
         </form>
@@ -465,7 +450,6 @@ function ProductFormModal({
   );
 }
 
-// ─── Dashboard ─────────────────────────────────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -516,7 +500,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                 Ola Bella
               </h1>
               <p className="font-sans text-xs text-muted-foreground">
-                Panel de administración
+                Panel de administraci\u00f3n
               </p>
             </div>
           </div>
@@ -528,7 +512,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             className="font-sans text-muted-foreground hover:text-foreground gap-1.5"
           >
             <LogOut className="w-4 h-4" />
-            Cerrar sesión
+            Cerrar sesi\u00f3n
           </Button>
         </div>
       </header>
@@ -541,7 +525,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             </h2>
             <p className="font-sans text-sm text-muted-foreground mt-0.5">
               {products.length} producto{products.length !== 1 ? "s" : ""} en
-              catálogo
+              cat\u00e1logo
             </p>
           </div>
           <Button
@@ -572,7 +556,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               Sin productos
             </h3>
             <p className="font-sans text-sm text-muted-foreground mb-5">
-              Agrega tu primer producto al catálogo.
+              Agrega tu primer producto al cat\u00e1logo.
             </p>
             <Button
               data-ocid="admin.product.primary_button"
@@ -600,7 +584,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                       <img
                         src={product.imageId}
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -626,7 +610,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
                         ${product.price.toLocaleString("es-MX")} MXN
                       </span>
                       <span className="font-sans text-xs text-muted-foreground">
-                        Cód: {product.productCode}
+                        C\u00f3d: {product.productCode}
                       </span>
                     </div>
                   </div>
@@ -660,14 +644,14 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
       <footer className="border-t border-border mt-auto py-4 text-center">
         <p className="font-sans text-xs text-muted-foreground">
-          © {currentYear}.{" "}
+          \u00a9 {currentYear}.{" "}
           <a
             href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-primary transition-colors"
           >
-            Creado con ❤️ en caffeine.ai
+            Creado con \u2764\ufe0f en caffeine.ai
           </a>
         </p>
       </footer>
@@ -688,12 +672,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
         <AlertDialogContent data-ocid="admin.product.dialog">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display">
-              ¿Eliminar producto?
+              \u00bfEliminar producto?
             </AlertDialogTitle>
             <AlertDialogDescription className="font-sans">
-              ¿Estás segura de que deseas eliminar{" "}
-              <strong>{deleteTarget?.name}</strong>? Esta acción no se puede
-              deshacer.
+              \u00bfEst\u00e1s segura de que deseas eliminar{" "}
+              <strong>{deleteTarget?.name}</strong>? Esta acci\u00f3n no se
+              puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -717,7 +701,6 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-// ─── Admin Page (root) ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPage({ navigate: _navigate }: AdminPageProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => localStorage.getItem(STORAGE_KEY) === "1",

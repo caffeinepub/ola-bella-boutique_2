@@ -46,22 +46,25 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
         transition={{ duration: 0.4, delay: index * 0.06 }}
         className="group relative bg-card rounded-2xl overflow-hidden border border-border shadow-card hover:shadow-card-hover transition-all duration-500 hover:-translate-y-1 flex flex-col"
       >
-        <button
-          type="button"
-          className="relative aspect-video overflow-hidden bg-secondary w-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          onClick={() => product.imageId && setLightboxOpen(true)}
-          aria-label={
-            product.imageId ? `Ver imagen de ${product.name}` : undefined
-          }
-          disabled={!product.imageId}
-          style={{ cursor: product.imageId ? "pointer" : "default" }}
+        {/* Image — object-contain so the full product is always visible */}
+        <div
+          className="relative w-full bg-secondary"
+          style={{ aspectRatio: "1/1" }}
         >
           {product.imageId ? (
-            <img
-              src={product.imageId}
-              alt={product.name}
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-            />
+            <button
+              type="button"
+              className="absolute inset-0 w-full h-full p-0 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              style={{ cursor: "pointer" }}
+              onClick={() => setLightboxOpen(true)}
+              aria-label={`Ver imagen de ${product.name}`}
+            >
+              <img
+                src={product.imageId}
+                alt={product.name}
+                className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
+              />
+            </button>
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center text-muted-foreground">
@@ -70,24 +73,25 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
               </div>
             </div>
           )}
-          <div className="absolute top-3 right-3">
-            <Badge className="bg-primary/90 text-primary-foreground border-0 text-xs font-sans font-medium backdrop-blur-sm">
+          <div className="absolute top-2 right-2 pointer-events-none">
+            <Badge className="bg-primary/90 text-primary-foreground border-0 text-[10px] font-sans font-medium backdrop-blur-sm px-1.5 py-0.5">
               {CATEGORY_LABELS[product.category]}
             </Badge>
           </div>
-        </button>
+        </div>
 
-        <div className="flex flex-col flex-1 p-5 gap-3">
-          <h3 className="font-display text-lg font-semibold text-foreground leading-snug">
+        {/* Compact product info below image */}
+        <div className="flex flex-col px-3 pt-2 pb-3 gap-2">
+          <h3 className="font-sans text-xs font-semibold text-foreground leading-tight line-clamp-2">
             {product.name}
           </h3>
 
-          <div className="flex items-center justify-between">
-            <span className="font-display text-xl font-bold text-primary">
-              ${product.price.toLocaleString("es-MX")} MXN
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-sans text-sm font-bold text-primary">
+              ${product.price.toLocaleString("es-MX")}
             </span>
-            <span className="text-xs text-muted-foreground font-sans bg-muted px-2 py-1 rounded-full">
-              Cód: {product.productCode}
+            <span className="text-[10px] text-muted-foreground font-sans bg-muted px-1.5 py-0.5 rounded-full truncate">
+              {product.productCode}
             </span>
           </div>
 
@@ -96,9 +100,9 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
             href={buildWhatsAppUrl(product)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-auto flex items-center justify-center gap-2 w-full bg-[oklch(0.55_0.18_145)] hover:bg-[oklch(0.48_0.18_145)] text-white font-sans font-medium text-sm py-2.5 px-4 rounded-xl transition-colors duration-200"
+            className="flex items-center justify-center gap-1.5 w-full bg-[oklch(0.55_0.18_145)] hover:bg-[oklch(0.48_0.18_145)] text-white font-sans font-medium text-xs py-2 px-3 rounded-xl transition-colors duration-200"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-4 h-4 flex-shrink-0" />
             Más información
           </a>
         </div>
@@ -144,14 +148,16 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
 function ProductSkeleton() {
   return (
     <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-card">
-      <Skeleton className="aspect-video w-full" />
-      <div className="p-5 space-y-3">
-        <Skeleton className="h-5 w-3/4" />
+      <div style={{ aspectRatio: "1/1" }} className="w-full overflow-hidden">
+        <Skeleton className="w-full h-full" />
+      </div>
+      <div className="px-3 pt-2 pb-3 space-y-2">
+        <Skeleton className="h-4 w-3/4" />
         <div className="flex justify-between items-center">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-14" />
         </div>
-        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-8 w-full" />
       </div>
     </div>
   );
@@ -228,8 +234,8 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
-        <div className="mb-8">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+        <div className="mb-6">
           <Tabs value={activeCategory} onValueChange={setActiveCategory}>
             <TabsList
               data-ocid="catalog.tab"
@@ -253,7 +259,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
         {isLoading ? (
           <div
             data-ocid="catalog.loading_state"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-2 gap-4"
           >
             {SKELETON_KEYS.map((k) => (
               <ProductSkeleton key={k} />
@@ -294,7 +300,7 @@ export default function CatalogPage({ navigate: _navigate }: CatalogPageProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-2 gap-4"
             >
               {filtered.map((product, i) => (
                 <ProductCard

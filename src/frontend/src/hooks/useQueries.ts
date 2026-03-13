@@ -14,6 +14,23 @@ export function useProducts() {
   });
 }
 
+async function withActorRetry<T>(
+  _actor: { getAllProducts: unknown } | null,
+  fn: () => Promise<T>,
+  retries = 2,
+): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      // Wait before retrying
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
+  throw new Error("Max retries exceeded");
+}
+
 export function useAddProduct() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
@@ -26,14 +43,16 @@ export function useAddProduct() {
       category: string;
       imageId: string | null;
     }) => {
-      if (!actor) throw new Error("No actor");
-      await actor.addProduct(
-        data.name,
-        data.price,
-        data.description,
-        data.productCode,
-        data.category,
-        data.imageId,
+      if (!actor) throw new Error("No actor available");
+      await withActorRetry(actor, () =>
+        actor.addProduct(
+          data.name,
+          data.price,
+          data.description,
+          data.productCode,
+          data.category,
+          data.imageId,
+        ),
       );
     },
     onSuccess: () => {
@@ -55,15 +74,17 @@ export function useUpdateProduct() {
       category: string;
       imageId: string | null;
     }) => {
-      if (!actor) throw new Error("No actor");
-      await actor.updateProduct(
-        data.id,
-        data.name,
-        data.price,
-        data.description,
-        data.productCode,
-        data.category,
-        data.imageId,
+      if (!actor) throw new Error("No actor available");
+      await withActorRetry(actor, () =>
+        actor.updateProduct(
+          data.id,
+          data.name,
+          data.price,
+          data.description,
+          data.productCode,
+          data.category,
+          data.imageId,
+        ),
       );
     },
     onSuccess: () => {
@@ -77,8 +98,8 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: bigint) => {
-      if (!actor) throw new Error("No actor");
-      await actor.deleteProduct(id);
+      if (!actor) throw new Error("No actor available");
+      await withActorRetry(actor, () => actor.deleteProduct(id));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
