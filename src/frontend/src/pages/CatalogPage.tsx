@@ -49,7 +49,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
         {/* Image — object-contain so the full product is always visible */}
         <div
           className="relative w-full bg-secondary"
-          style={{ aspectRatio: "9/16" }}
+          style={{ aspectRatio: "3/5" }}
         >
           {product.imageId ? (
             <button
@@ -148,7 +148,7 @@ function ProductCard({ product, index }: { product: Product; index: number }) {
 function ProductSkeleton() {
   return (
     <div className="bg-card rounded-2xl overflow-hidden border border-border shadow-card">
-      <div style={{ aspectRatio: "9/16" }} className="w-full overflow-hidden">
+      <div style={{ aspectRatio: "3/5" }} className="w-full overflow-hidden">
         <Skeleton className="w-full h-full" />
       </div>
       <div className="px-3 pt-2 pb-3 space-y-2">

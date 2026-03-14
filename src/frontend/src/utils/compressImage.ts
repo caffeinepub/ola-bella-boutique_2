@@ -4,7 +4,7 @@
  */
 export async function compressImageToDataUrl(
   file: File,
-  targetBytes = 150_000,
+  targetBytes = 25_000,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -13,9 +13,9 @@ export async function compressImageToDataUrl(
       URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement("canvas");
 
-      // Scale down if needed — max 600px on longest side
+      // Scale down if needed — max 400px on longest side
       let { width, height } = img;
-      const MAX_SIZE = 600;
+      const MAX_SIZE = 400;
       if (width > MAX_SIZE || height > MAX_SIZE) {
         if (width >= height) {
           height = Math.round((height / width) * MAX_SIZE);
@@ -37,7 +37,7 @@ export async function compressImageToDataUrl(
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
         // base64 overhead: each char ~0.75 bytes
         const estimatedBytes = (dataUrl.length * 3) / 4;
-        if (estimatedBytes <= targetBytes || quality <= 0.15) {
+        if (estimatedBytes <= targetBytes || quality <= 0.1) {
           resolve(dataUrl);
         } else {
           tryQuality(Math.round((quality - 0.1) * 100) / 100);

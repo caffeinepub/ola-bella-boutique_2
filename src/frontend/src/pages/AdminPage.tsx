@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ImageIcon,
   Loader2,
@@ -42,13 +43,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Product } from "../backend";
 import { Category } from "../backend";
-import { useActor } from "../hooks/useActor";
-import {
-  useAddProduct,
-  useDeleteProduct,
-  useProducts,
-  useUpdateProduct,
-} from "../hooks/useQueries";
+import { createActorWithConfig } from "../config";
+import { useProducts } from "../hooks/useQueries";
 import { compressImageToDataUrl } from "../utils/compressImage";
 
 const ADMIN_EMAIL = "admin@tutienda.com";
@@ -199,10 +195,8 @@ function ProductFormModal({
   const [form, setForm] = useState<ProductFormData>(emptyForm);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
-
-  const { actor, isFetching: actorLoading } = useActor();
-  const addProduct = useAddProduct();
-  const updateProduct = useUpdateProduct();
+  const [isSaving, setIsSaving] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (open) {
@@ -222,8 +216,6 @@ function ProductFormModal({
     }
   }, [open, editingProduct]);
 
-  const isActorReady = !!actor && !actorLoading;
-  const isSaving = addProduct.isPending || updateProduct.isPending;
   const isSubmitting = isCompressing || isSaving;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,49 +240,52 @@ function ProductFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!actor) {
-      toast.error("Conectando al servidor, intenta en un momento.");
-      return;
-    }
-
-    const payload = {
-      name: form.name,
-      price: Number.parseFloat(form.price),
-      description: "",
-      productCode: form.productCode,
-      category: form.category,
-      imageId: form.imageUrl,
-    };
-
+    setIsSaving(true);
     try {
+      // Create a fresh actor for each save to avoid stale connection issues
+      const freshActor = await createActorWithConfig();
+
       if (editingProduct) {
-        await updateProduct.mutateAsync({ id: editingProduct.id, ...payload });
+        await freshActor.updateProduct(
+          editingProduct.id,
+          form.name,
+          Number.parseFloat(form.price),
+          "",
+          form.productCode,
+          form.category,
+          form.imageUrl,
+        );
         toast.success("Producto actualizado correctamente");
       } else {
-        await addProduct.mutateAsync(payload);
+        await freshActor.addProduct(
+          form.name,
+          Number.parseFloat(form.price),
+          "",
+          form.productCode,
+          form.category,
+          form.imageUrl,
+        );
         toast.success("Producto agregado correctamente");
       }
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       onClose();
     } catch (err) {
-      toast.error(
-        `Error al guardar: ${
-          err instanceof Error ? err.message : String(err)
-        }`.slice(0, 150),
-      );
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Error al guardar: ${msg}`.slice(0, 200));
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const previewSrc = localPreview ?? form.imageUrl;
 
-  const statusLabel = !isActorReady
-    ? "Conectando..."
-    : isCompressing
-      ? "Procesando imagen..."
-      : isSaving
-        ? "Guardando..."
-        : editingProduct
-          ? "Guardar cambios"
-          : "Agregar producto";
+  const statusLabel = isCompressing
+    ? "Procesando imagen..."
+    : isSaving
+      ? "Guardando..."
+      : editingProduct
+        ? "Guardar cambios"
+        : "Agregar producto";
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -431,10 +426,10 @@ function ProductFormModal({
             <Button
               data-ocid="product.submit_button"
               type="submit"
-              disabled={isSubmitting || !form.category || !isActorReady}
+              disabled={isSubmitting || !form.category}
               className="font-sans font-medium"
             >
-              {isSubmitting || !isActorReady ? (
+              {isSubmitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : null}
               {statusLabel}
@@ -450,9 +445,10 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data: products = [], isLoading } = useProducts();
-  const deleteProduct = useDeleteProduct();
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
@@ -466,13 +462,18 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
-      await deleteProduct.mutateAsync(deleteTarget.id);
+      const freshActor = await createActorWithConfig();
+      await freshActor.deleteProduct(deleteTarget.id);
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Producto eliminado");
     } catch {
       toast.error("Error al eliminar el producto");
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
     }
-    setDeleteTarget(null);
   };
 
   const currentYear = new Date().getFullYear();
@@ -686,8 +687,12 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <AlertDialogAction
               data-ocid="admin.product.confirm_button"
               onClick={handleDelete}
+              disabled={isDeleting}
               className="font-sans bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : null}
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
